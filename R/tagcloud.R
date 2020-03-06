@@ -5,7 +5,19 @@ debugpr   <- function( ... ) if( tagcloud.debug ) print( ... )
 debugcatf <- function( ... ) if( tagcloud.debug ) cat( sprintf( ... ))
 
 # calculate cex from floor, ceiling and value vector
-.calc.cex <- function( x, floor, ceiling, wmin= NULL, wmax= NULL ) {
+
+#' Calculate cex for tags
+#'
+#' Calculate cex for tags
+#' 
+#' Scale the weights such that minimum weight corresponds to minimum font
+#' magnification parameter (cex) and maximum weight corresponds to maximum
+#' cex.
+#' @param x weights
+#' @param floor,ceiling minimum and maximum cex calculated (default: 1, 3)
+#' @param wmin,wmax minimum and maximum weight (default: NULL)
+#' @export
+calc.cex <- function( x, floor=1, ceiling=3, wmin= NULL, wmax= NULL ) {
 
   if( is.null( wmin ) ) wmin <- min( x )
   if( is.null( wmax ) ) wmax <- max( x )
@@ -14,6 +26,8 @@ debugcatf <- function( ... ) if( tagcloud.debug ) cat( sprintf( ... ))
   ret
 }
 
+## use strwidth and strheight to calculate the sizes (width, height,
+## surface) of the boxes around tags
 .calc.sizes <- function( tags, boxes, family ) {
 
   if( length( family ) < 2 ) family <- rep( family, length( tags ) )
@@ -27,7 +41,7 @@ debugcatf <- function( ... ) if( tagcloud.debug ) cat( sprintf( ... ))
   boxes
 }
 
-
+## fit the tag cloud on the screen using a rough heuristic formula
 .auto.scale <- function( boxes ) {
 
   usr <- par( "usr" )
@@ -193,6 +207,8 @@ debugcatf <- function( ... ) if( tagcloud.debug ) cat( sprintf( ... ))
 boxes.width  <- function( boxes ) max( boxes[,"x"] + boxes[,"w"] ) - min( boxes[,"x"] ) 
 boxes.height <- function( boxes ) max( boxes[,"y"] + boxes[,"h"] ) - min( boxes[,"y"] ) 
 
+## ratio of the surface occupied by tags divided by the total surface of
+## the cloud.
 boxes.ratio <- function( boxes ) {
 
   tot.surface <- boxes.width( boxes ) * boxes.height( boxes )
@@ -725,6 +741,9 @@ algorithm.snake <- function( boxes, meta ) {
 #' @param fvert Fraction of tags which will be rotated by 90 degrees
 #' counterclockwise.
 #' @param plot If FALSE, no plot will be produced.
+#' @param weightiscex If TRUE, weights are assumed to be directly cex
+#'        factor for the labels. Combined with scale=1 this ensures that the size of
+#'        the labels shown exactly corresponds to weights.
 #' @param add If TRUE, the tags will be added to the current plot instead of
 #' creating a new plot.
 #' @param with.box If TRUE, a rectangle will be plotted around each tag.
@@ -815,6 +834,7 @@ tagcloud <- function( tags, weights= 1,
   wmin= NULL, wmax= NULL, floor= 1, ceiling= 3, 
   family= NULL, col= NULL, 
   fvert= 0,
+  weightiscex=FALSE,
   plot= TRUE, add= FALSE
    ) {
 
@@ -852,13 +872,22 @@ tagcloud <- function( tags, weights= 1,
     plot.window( xlim= c( 0, 1 ), ylim= c( 0, 1 ), asp= 1 )
   }
 
-  boxes[, "cex"] <- .calc.cex( meta$weights, floor, ceiling, wmin= wmin, wmax= wmax )
+  ## when weightiscex, we directly take the weights as cex
+  if(weightiscex) {
+    boxes[, "cex"] <- meta$weights
+  } else {
+    boxes[, "cex"] <- calc.cex( meta$weights, floor, ceiling, wmin= wmin, wmax= wmax )
+  }
+
+  ## calculate box sizes
   boxes <- .calc.sizes( meta$tags, boxes, meta$family )
 
   if( scale == "auto" ) scale <- .auto.scale( boxes )
   scale <- scale * scale.multiplier
 
   boxes[,"cex"] <- boxes[,"cex"] * scale
+
+  ## after scaling, the box sizes need to be recalculated
   boxes <- .calc.sizes( meta$tags, boxes, meta$family )
 
   meta$vertical <- rep( FALSE, n.tags )
@@ -892,6 +921,7 @@ tagcloud <- function( tags, weights= 1,
   algorithm <- match.arg( algorithm, 
     c( "oval", "fill", "random", "list", "clist", "snake" ) )
 
+  ## here the boxes are rearranged to fill the space
   boxes <- switch( algorithm,
       snake=algorithm.snake( boxes, meta ),
       oval=algorithm.spiral( boxes ),
